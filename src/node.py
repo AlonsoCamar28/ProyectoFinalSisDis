@@ -2,7 +2,7 @@ import socket
 import threading
 import json
 import time
-
+#comentario de prueba
 class DistributedChatNode:
     def __init__(self, node_id, host, port, peers):
         # Inicialización basada en el documento [cite: 50-57]
