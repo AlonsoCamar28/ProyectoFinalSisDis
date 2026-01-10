@@ -35,29 +35,36 @@ class DistributedChatNode:
                 if self.running: print(f"Error en servidor: {e}")
 
     def handle_client(self, client_socket):
-        try:
-            data = client_socket.recv(1024).decode('utf-8')
-            message = json.loads(data)
-            
-            msg_id = message.get('id')
-            if msg_id in self.seen_messages:
-                return 
+    try:
+        data = client_socket.recv(1024).decode('utf-8')
+        message = json.loads(data)
 
-            self.seen_messages.add(msg_id)
-            sender = message.get('from')
-            content = message.get('content')
-            
-            # NUEVO SEMANA 3: Guardar en DB cuando recibimos algo nuevo
-            self.storage.save_message(msg_id, sender, content)
-            
-            print(f"\n[{sender}]: {content}") # Formato más limpio
+        # SEMANA 4: Heartbeat recibido
+        if message.get("type") == "heartbeat":
+            sender = message.get("from")
+            self.last_seen[sender] = time.time()
+            return
 
-            self.broadcast_message(message, original_sender=False)
+        msg_id = message.get('id')
+        if msg_id in self.seen_messages:
+            return
 
-        except Exception as e:
-            print(f"Error recibiendo datos: {e}")
-        finally:
-            client_socket.close()
+        self.seen_messages.add(msg_id)
+        sender = message.get('from')
+        content = message.get('content')
+
+        # Guardar en DB
+        self.storage.save_message(msg_id, sender, content)
+
+        print(f"\n[{sender}]: {content}")
+
+        self.broadcast_message(message, original_sender=False)
+
+    except Exception as e:
+        print(f"Error recibiendo datos: {e}")
+    finally:
+        client_socket.close()
+
 
     def send_direct_message(self, target_host, target_port, message_dict):
         # (Igual que antes...)
@@ -112,6 +119,15 @@ class DistributedChatNode:
         print(f"--- Nodo {self.node_id} Activo ---")
         self.show_help()
 
+        #SEMANA 4:  Hilos de heartbeats y monitoreo
+        heartbeat_thread = threading.Thread(target=self.send_heartbeats)
+        heartbeat_thread.daemon = True
+        heartbeat_thread.start()
+
+        monitor_thread = threading.Thread(target=self.monitor_peers)
+        monitor_thread.daemon = True
+        monitor_thread.start()
+
         # NUEVO SEMANA 3: Bucle de comandos mejorado (CLI)
         while self.running:
             try:
@@ -143,3 +159,25 @@ class DistributedChatNode:
             except KeyboardInterrupt:
                 self.running = False
                 break
+
+    def send_heartbeats(self):
+    while self.running:
+        heartbeat_msg = {
+            "type": "heartbeat",
+            "from": self.node_id
+        }
+
+        for peer in self.peers:
+         self.send_direct_message(peer['host'], peer['port'], heartbeat_msg)
+
+
+        time.sleep(self.heartbeat_interval)
+
+    def monitor_peers(self):
+    while self.running:
+        now = time.time()
+        for peer_id, last in self.last_seen.items():
+            if now - last > self.timeout_interval:
+                print(f"[ALERTA] Nodo {peer_id} no responde (caído)")
+        time.sleep(1)
+
