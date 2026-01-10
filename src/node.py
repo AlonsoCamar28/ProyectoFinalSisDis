@@ -44,8 +44,38 @@ class DistributedChatNode:
             sender = message.get("from")
             self.last_seen[sender] = time.time()
             return
+        # SEMANA 5: election
+if message.get("type") == "election":
+    sender = message.get("from")
+    print(f"[{self.node_id}] Elección recibida de {sender}")
 
-        msg_id = message.get('id')
+    reply = {"type": "ok", "from": self.node_id}
+    self.send_direct_message(
+        next(p['host'] for p in self.peers if p['id'] == sender),
+        next(p['port'] for p in self.peers if p['id'] == sender),
+        reply
+    )
+
+    if not self.in_election:
+        self.start_election()
+    return
+
+
+# SEMANA 5: ok
+if message.get("type") == "ok":
+    self.in_election = False
+    return
+
+
+# SEMANA 5: leader
+if message.get("type") == "leader":
+    self.leader_id = message.get("from")
+    self.in_election = False
+    print(f"[{self.node_id}] Nuevo líder: {self.leader_id}")
+    return
+
+        
+msg_id = message.get('id')
         if msg_id in self.seen_messages:
             return
 
@@ -180,4 +210,35 @@ class DistributedChatNode:
             if now - last > self.timeout_interval:
                 print(f"[ALERTA] Nodo {peer_id} no responde (caído)")
         time.sleep(1)
+
+def start_election(self):
+    print(f"[{self.node_id}] Iniciando elección de líder")
+    self.in_election = True
+    higher_nodes = [p for p in self.peers if p['id'] > self.node_id]
+
+    if not higher_nodes:
+        self.become_leader()
+        return
+
+    msg = {
+        "type": "election",
+        "from": self.node_id
+    }
+
+    for peer in higher_nodes:
+        self.send_direct_message(peer['host'], peer['port'], msg)
+
+        def become_leader(self):
+    self.leader_id = self.node_id
+    self.in_election = False
+    print(f"[{self.node_id}] SOY EL NUEVO LÍDER")
+
+    msg = {
+        "type": "leader",
+        "from": self.node_id
+    }
+
+    for peer in self.peers:
+        self.send_direct_message(peer['host'], peer['port'], msg)
+
 
