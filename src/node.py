@@ -144,7 +144,11 @@ msg_id = message.get('id')
         server_thread = threading.Thread(target=self.start_server)
         server_thread.daemon = True
         server_thread.start()
-        
+        monitor_thread = threading.Thread(target=self.monitor_leader)
+        monitor_thread.daemon = True
+        monitor_thread.start()
+
+
         time.sleep(1)
         print(f"--- Nodo {self.node_id} Activo ---")
         self.show_help()
@@ -240,5 +244,24 @@ def start_election(self):
 
     for peer in self.peers:
         self.send_direct_message(peer['host'], peer['port'], msg)
+
+        #SEMANA 6: Crear monitor del lider
+def monitor_leader(self):
+    while self.running:
+        time.sleep(2)
+
+        if self.leader_id is None:
+            continue
+
+        last = self.last_seen.get(self.leader_id)
+
+        if last is None:
+            continue
+
+        if time.time() - last > self.heartbeat_timeout:
+            print(f"[{self.node_id}] Líder {self.leader_id} caído. Iniciando elección...")
+            self.leader_id = None
+            self.start_election()
+
 
 
